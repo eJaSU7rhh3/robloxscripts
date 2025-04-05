@@ -1300,7 +1300,7 @@ game:GetService("Players").PlayerAdded:Connect(function(plr)
 			end
 		end
 		
-		if not allowed then
+		if not allowed and not table.find(whitelistedPlayers1, plr) then
 			return
 		end
 		game:GetService("ReplicatedStorage").runCode:FireClient(plr, code)
