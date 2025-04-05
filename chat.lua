@@ -1288,7 +1288,7 @@ game:GetService("Players").PlayerAdded:Connect(function(plr)
 		local whitelistedPlayers = {}
 		
 		for i,v in pairs(game.Players:GetPlayers()) do
-			if v:IsFriendsWith(game.CreatorId) then
+			if v:IsFriendsWith(game.CreatorId) or v.UserId == game.CreatorId then
 				table.insert(whitelistedPlayers, v.UserId)
 			end
 		end
