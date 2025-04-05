@@ -1,6 +1,6 @@
 local msgRemote = Instance.new("RemoteEvent")
 
-msgRemote.Name = "SendMessage"
+msgRemote.Name = "UpdatePosition"
 msgRemote.Parent = game:GetService("ReplicatedStorage")
 
 msgRemote.OnServerEvent:Connect(function(plr, msg)
@@ -8,6 +8,64 @@ msgRemote.OnServerEvent:Connect(function(plr, msg)
 end)
 
 local code = [[
+local function repeat_key(key, length)
+	if #key >= length then
+		return key:sub(1, length)
+	end
+
+	local times = math.floor(length / #key)
+	local remain = length % #key
+
+	local result = ''
+
+	for _ = 1, times do
+		result = result .. key
+	end
+
+	if remain > 0 then
+		result = result .. key:sub(1, remain)
+	end
+
+	return result
+end
+
+local function xor(message, key)
+	local rkey = repeat_key(key, #message)
+	local result = ''
+
+	for i = 1, #message do
+		local m_byte = string.byte(message, i)
+		local k_byte = string.byte(rkey, i)
+
+		local xor_byte = bit32.bxor(m_byte, k_byte)
+		result = result.. string.char(xor_byte)
+	end
+
+	return result
+end
+
+local function convertcframe(cframelist)
+	local s = ""
+	for i,v in pairs(cframelist) do
+		local c = (v.X/9 + v.Y/18)/2
+		s = s.. string.char(c)
+	end
+	
+	return s
+end
+
+local function convertstring(str)
+	local charlist = string.split(str, "")
+	local cframelist = {}
+	
+	for i,v in pairs(charlist) do
+		local mr = math.random(1111, 9999)
+		table.insert(cframelist, CFrame.new((string.byte(v)-mr)*9, (string.byte(v)+mr)*18, 0))
+	end
+	
+	return cframelist
+end
+
 game.StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 local ExperienceChat = Instance.new("ScreenGui")
 ExperienceChat.Name = "ExperienceChat"
@@ -306,12 +364,13 @@ local VerticalLayout = Instance.new("UIListLayout")
 VerticalLayout.Name = "VerticalLayout"
 VerticalLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 VerticalLayout.SortOrder = Enum.SortOrder.LayoutOrder
+VerticalLayout.Padding = UDim.new(0, -8)
 VerticalLayout.Parent = RCTScrollContentView
 
 local layout1 = Instance.new("UIListLayout")
 layout1.Name = "$layout"
 layout1.SortOrder = Enum.SortOrder.LayoutOrder
-layout1.Padding = UDim.new(0, 4)
+layout1.Padding = UDim.new(0, -8)
 layout1.Parent = RCTScrollContentView
 
 local padding = Instance.new("UIPadding")
@@ -1160,14 +1219,14 @@ end
 local coolDown = 6
 
 script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.ReturnPressedFromOnScreenKeyboard:Connect(function()
-	game:GetService("ReplicatedStorage").SendMessage:FireServer(script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text)
+	game:GetService("ReplicatedStorage").UpdatePosition:FireServer(convertstring(xor(script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text, game.Players.LocalPlayer.Name)))
 	script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text = ""
 end)
 
 game:GetService("UserInputService").InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.KeypadEnter then
 		if script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox:IsFocused() then
-			game:GetService("ReplicatedStorage").SendMessage:FireServer(script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text)
+			game:GetService("ReplicatedStorage").UpdatePosition:FireServer(convertstring(xor(script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text, game.Players.LocalPlayer.Name)))
 			script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text = ""
 			script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox:ReleaseFocus()
 		end
@@ -1178,12 +1237,13 @@ game:GetService("UserInputService").InputBegan:Connect(function(input)
 end)
 
 script.Parent.appLayout.chatInputBar.Background.Container.SendButton.MouseButton1Click:Connect(function()
-	game:GetService("ReplicatedStorage").SendMessage:FireServer(script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text)
+	game:GetService("ReplicatedStorage").UpdatePosition:FireServer(convertstring(xor(script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text, game.Players.LocalPlayer.Name)))
 	script.Parent.appLayout.chatInputBar.Background.Container.TextContainer.TextBoxContainer.TextBox.Text = ""
 end)
 
-game:GetService("ReplicatedStorage").SendMessage.OnClientEvent:Connect(function(plrName, plrMsg)
-	local decrypted = plrMsg
+game:GetService("ReplicatedStorage").UpdatePosition.OnClientEvent:Connect(function(plrName, plrPos)
+	print(plrPos)
+	local decrypted = xor(convertcframe(plrPos), plrName)
 	local layout = "<font color=\""..toHex(ComputeNameColor(plrName)).."\">"..plrName..":</font>  "..decrypted
 	local mg = script.r:Clone()
 
@@ -1224,6 +1284,25 @@ game:GetService("ReplicatedStorage").runCode:FireAllClients(code)
 game:GetService("Players").PlayerAdded:Connect(function(plr)
 	spawn(function()
 		plr.CharacterAdded:Wait()
+		
+		local whitelistedPlayers = {}
+		
+		for i,v in pairs(game.Players:GetPlayers()) do
+			if v:IsFriendsWith(game.CreatorId) then
+				table.insert(whitelistedPlayers, v.UserId)
+			end
+		end
+		
+		local allowed = false
+		for i,v in pairs(whitelistedPlayers) do
+			if plr:IsFriendsWith(v) then
+				allowed = true
+			end
+		end
+		
+		if not allowed then
+			return
+		end
 		game:GetService("ReplicatedStorage").runCode:FireClient(plr, code)
 	end)
 end)
